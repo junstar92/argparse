@@ -16,7 +16,7 @@ int main()
      * to make sure the string is a valid attribute name.
      */
     {
-    auto parser = argparse::ArgumentParser("09_dest", '-', false);
+    auto parser = argparse::ArgumentParser("09_dest");
     parser.add_argument("-f", "--foo-bar", "--foo"); // generates 'foo_bar' as dest value
     parser.add_argument("-x", "-y"); // generates 'x' as dest value
 
@@ -31,11 +31,11 @@ int main()
 
     auto args = parser.parse_args(argc, argv);
     std::cout << "-f: " << args.get("foo_bar") << std::endl;
-    std::cout << "-x: " << args.get("x") << std::endl;
+    std::cout << "-x: " << args.get("x") << "\n\n";
     }
 
     {
-    auto parser = argparse::ArgumentParser("09_dest", '-', false);
+    auto parser = argparse::ArgumentParser("09_dest");
     parser.add_argument("--foo")
     .set_dest("bar"); // generates 'bar' as dest value
 

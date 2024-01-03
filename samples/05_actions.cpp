@@ -23,7 +23,7 @@ int main()
     {
         /**
          * - StoreConstAction
-         * This stores the specified value by set_const_value method.
+         * This stores the specified value by set_const method.
          * Default const value is empty. The `StoreConstAction` action is most commonly 
          * used with optional arguments that specify some sort of flag.
          */
@@ -91,7 +91,7 @@ int main()
     {
         /**
          * - AppendConstAction
-         * This stores a list, and appends the value specified by the const_value method to the list.
+         * This stores a list, and appends the value specified by the set_const method to the list.
          * `AppendConstAction` is typically useful when multiple arguments need to store constants to the same list.
          */
         auto parser = argparse::ArgumentParser();
@@ -115,7 +115,7 @@ int main()
     {
         /**
          * - CountAction
-         * This counts the number of times a keyword argument occurs.
+         * This counts the number of times a keyword argument occurs. This is useful for increasing verbosity levels.
          */
         auto parser = argparse::ArgumentParser();
         parser.add_argument("--verbose", "-v", argparse::actions::CountAction())

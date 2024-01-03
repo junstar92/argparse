@@ -280,6 +280,10 @@ public:
         return data_;
     }
 
+    bool has(std::string const& key) const {
+        return data_.find(key) != data_.cend();
+    }
+
     template<typename T = std::string>
     auto get(std::string const& key) const {
         auto const& values = data_.at(key);
@@ -975,7 +979,7 @@ private:
         if (choices_.size()) {
             for (auto const& value : ret) {
                 if (value.length() && std::find(choices_.cbegin(), choices_.cend(), value) == choices_.cend()) {
-                    throw argument_error(*this, "invalid choice: " + value + " (choose from " + get_choice_str() + ")");
+                    throw argument_error(*this, "invalid choice: '" + value + "' (choose from " + get_choice_str() + ")");
                 }
                 // if a type of this argument is subparser type, the first value is only checked
                 if (nargs_.get_type() == NArgs::Type::parser) break;
@@ -1033,10 +1037,14 @@ private:
 public:
     ArgumentGroup(ArgumentParser& parser, std::string_view title = "", std::string_view description = "")
     : parser_{parser}, title_{title}, description_{description} {}
-    ArgumentGroup(ArgumentGroup const& other)
-    : parser_{other.parser_}, title_{other.title_}, description_{other.description_}, group_arguments_{other.group_arguments_} {}
+    ArgumentGroup(ArgumentGroup const&) = delete;
     ArgumentGroup(ArgumentGroup&& other) noexcept
     : parser_{other.parser_}, title_{std::move(other.title_)}, description_{std::move(other.description_)}, group_arguments_{std::move(other.group_arguments_)} {}
+    
+    ArgumentGroup operator=(ArgumentGroup const&) = delete;
+    ArgumentGroup operator=(ArgumentGroup&& other) noexcept {
+        return ArgumentGroup(std::move(other));
+    }
 
     template<typename... Args>
     Argument& add_argument(Args&&... args);
@@ -1055,10 +1063,14 @@ private:
 public:
     MutuallyExclusiveGroup(ArgumentParser& parser, bool const required = false)
     : parser_{parser}, required_{required} {}
-    MutuallyExclusiveGroup(MutuallyExclusiveGroup const& other)
-    : parser_{other.parser_}, required_{other.required_}, group_arguments_{other.group_arguments_} {}
+    MutuallyExclusiveGroup(MutuallyExclusiveGroup const&) = delete;
     MutuallyExclusiveGroup(MutuallyExclusiveGroup&& other) noexcept
     : parser_{other.parser_}, required_{other.required_}, group_arguments_{std::move(other.group_arguments_)} {}
+    
+    MutuallyExclusiveGroup operator=(MutuallyExclusiveGroup const&) = delete;
+    MutuallyExclusiveGroup operator=(MutuallyExclusiveGroup&& other) noexcept {
+        return MutuallyExclusiveGroup(std::move(other));
+    }
 
     template<typename... Args>
     Argument& add_argument(Args&&... args);
@@ -1628,6 +1640,21 @@ public:
         if (help_) {
             __add_help_argument();
         }
+    }
+
+    ArgumentParser(ArgumentParser const&) = delete;
+    ArgumentParser operator=(ArgumentParser const&) = delete;
+
+    ArgumentParser(ArgumentParser&& other) noexcept
+    : prog_name_{std::move(other.prog_name_)}, usage_{std::move(other.usage_)}, description_{std::move(other.description_)}
+    , epilog_{std::move(other.epilog_)}, prefix_char_{other.prefix_char_}, allow_abbrev_{other.allow_abbrev_}, help_{other.help_}
+    , exit_on_error_{other.exit_on_error_}, args_list_{std::move(other.args_list_)}, optional_args_map_{std::move(other.optional_args_map_)}
+    , end_iterator{}, argument_groups_{std::move(other.argument_groups_)}, positional_groups_{other.positional_groups_}
+    , optional_groups_{other.optional_groups_}, mutually_exclusive_groups_{std::move(other.mutually_exclusive_groups_)}
+    , subparser_{std::move(other.subparser_)}, subparsers_map_{std::move(other.subparsers_map_)}, has_negative_number_options_{other.has_negative_number_options_}
+    {}
+    ArgumentParser operator=(ArgumentParser&& other) noexcept {
+        return ArgumentParser(std::move(other));
     }
 
     ArgumentParser& set_usage(std::string_view usage) {
@@ -2316,6 +2343,7 @@ private:
         // slice off the appropriate arg strings for each positional
         // and the positional and its args to the list
         for (size_t i = 0; i < arg_counts.size(); ++i, ++positionals) {
+            if (arg_counts[i] == 0) continue;
             std::vector<std::string> args(arg_strings.begin() + start_index, arg_strings.begin() + start_index + arg_counts[i]);
             start_index += arg_counts[i];
             __take_argument(ret, seen_args, seen_non_default_args, argument_conflicts, positionals, args);
@@ -2334,16 +2362,18 @@ private:
         seen_args.insert(argument);
         auto argument_values = argument.__get_values(args);
 
-        // [TODO] seen_non_default_arg logic (due to comparison between addresses of 2 objects)
         // error if this argument is not allowed with other previsouly seen arguments,
         // assuming that arguments that use the default value don't really count as "present"
-        seen_non_default_args.insert(argument);
-        if (argument_conflicts.find(argument) != argument_conflicts.end()) {
-            auto const& conflicts_list = argument_conflicts.at(argument);
-            for (auto const& conflict : conflicts_list) {
-                for (auto const& seen_arg : seen_args) {
-                    if (conflict.get() == seen_arg.get()) {
-                        throw argument_error(argument, "not allowed with argument " + seen_arg.get().get_argument_name());
+        auto const& arg_default_values = argument.get_default();
+        if (argument_values.size() != arg_default_values.size() || argument_values[0] != arg_default_values[0]) {
+            seen_non_default_args.insert(argument);
+            if (argument_conflicts.find(argument) != argument_conflicts.end()) {
+                auto const& conflicts_list = argument_conflicts.at(argument);
+                for (auto const& conflict : conflicts_list) {
+                    for (auto const& seen_arg : seen_non_default_args) {
+                        if (conflict.get() == seen_arg.get()) {
+                            throw argument_error(argument, "not allowed with argument " + seen_arg.get().get_argument_name());
+                        }
                     }
                 }
             }
@@ -2520,10 +2550,14 @@ void Argument::initialize() {
         if (nargs_.get_type() != NArgs::Type::optional && nargs_.get_type() != NArgs::Type::zero_or_more) {
             required_ = true;
         }
-        if (nargs_.get_type() == NArgs::Type::zero_or_more) {
-            if (!default_value_.size()) {
-                required_ = true;
-            }
+        else {
+            required_ = false;
+        }
+        if (nargs_.get_type() == NArgs::Type::zero_or_more && !default_value_.size()) {
+            required_ = true;
+        }
+        else {
+            required_ = false;
         }
     }
 

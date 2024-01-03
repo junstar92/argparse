@@ -7,7 +7,7 @@ int main()
     // it will exit with error info.
     // If the user would like to catch errors manually,
     // the feature can be enabled by setting exit_on_error(the third argument) to false
-    auto parser = argparse::ArgumentParser("03_exit_on_error", '-', false);
+    auto parser = argparse::ArgumentParser("03_exit_on_error", true, '-', false);
     parser.add_argument("--foo");
 
     // cmd: ./03_exit_on_error --foo
